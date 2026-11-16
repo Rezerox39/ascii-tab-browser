@@ -168,7 +168,7 @@ class MainActivity : AppCompatActivity() {
             val title = android.widget.TextView(this)
             title.text = tab.title.take(40)
             title.setTextColor(if (tab == activeTab) 0xFF60A5FA.toInt() else 0xFFE2E8F0.toInt())
-            title.fontFamily = "monospace"
+            title.typeface = android.graphics.Typeface.MONOSPACE
             title.layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             row.addView(title)
             val close = android.widget.Button(this)
