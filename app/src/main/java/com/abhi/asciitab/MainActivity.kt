@@ -59,19 +59,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun createWebView(): WebView {
+    private fun createWebView(incognito: Boolean = false): WebView {
+        val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+        val jsEnabled = prefs.getBoolean("js", true)
+        val night = prefs.getBoolean("night", true)
         val wv = WebView(this)
         wv.settings.apply {
-            javaScriptEnabled = true
+            javaScriptEnabled = jsEnabled
             domStorageEnabled = true
-            allowFileAccess = true
+            allowFileAccess = !incognito
             setSupportZoom(true)
             builtInZoomControls = true
             displayZoomControls = false
             useWideViewPort = true
             loadWithOverviewMode = true
         }
-        if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
+        if (night && WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
             WebSettingsCompat.setForceDark(wv.settings, WebSettingsCompat.FORCE_DARK_ON)
         }
 
@@ -94,11 +97,14 @@ class MainActivity : AppCompatActivity() {
                     else urlBar.setText(url ?: "")
                 }
                 tabs.find { it.webView == view }?.url = url ?: ""
-                if (!url.isNullOrBlank() && !url.startsWith("file:///android_asset")) {
+                val incognito = tabs.find { it.webView == view }?.incognito == true
+                if (!incognito && !url.isNullOrBlank() && !url.startsWith("file:///android_asset")) {
                     getSharedPreferences("history", Context.MODE_PRIVATE).edit().putString(url, url).apply()
                 }
             }
             override fun shouldInterceptRequest(view: WebView?, request: android.webkit.WebResourceRequest?): WebResourceResponse? {
+                val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+                if (!prefs.getBoolean("adblock", true)) return null
                 val host = request?.url?.host ?: return null
                 if (AdBlocker.isBlocked(host)) {
                     return WebResourceResponse("text/plain", "UTF-8", "".byteInputStream())
@@ -122,9 +128,9 @@ class MainActivity : AppCompatActivity() {
         return wv
     }
 
-    private fun openNewTab() {
-        val wv = createWebView()
-        val tab = Tab(webView = wv)
+    private fun openNewTab(incognito: Boolean = false) {
+        val wv = createWebView(incognito)
+        val tab = Tab(incognito = incognito, webView = wv)
         tabs.add(tab)
         switchToTab(tab)
         wv.loadUrl("file:///android_asset/newtab.html")
@@ -154,6 +160,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun closeTab(tab: Tab) {
         tabs.remove(tab)
+        if (tab.incognito) {
+            android.webkit.CookieManager.getInstance().removeAllCookies(null)
+            tab.webView.clearCache(true)
+            tab.webView.clearHistory()
+        }
         tab.webView.destroy()
         if (tabs.isEmpty()) openNewTab()
         else switchToTab(tabs.last())
@@ -168,6 +179,7 @@ class MainActivity : AppCompatActivity() {
         val anchor = findViewById<ImageButton>(R.id.moreBtn)
         val popup = android.widget.PopupMenu(this, anchor)
         popup.menu.add(0, 1, 0, "New tab")
+        popup.menu.add(0, 8, 0, "New incognito tab")
         popup.menu.add(0, 2, 0, "Bookmark this page")
         popup.menu.add(0, 3, 0, "Bookmarks")
         popup.menu.add(0, 4, 0, "History")
@@ -177,6 +189,7 @@ class MainActivity : AppCompatActivity() {
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 1 -> openNewTab()
+                8 -> openNewTab(true)
                 2 -> bookmarkCurrent()
                 3 -> showBookmarks()
                 4 -> showHistory()
@@ -242,7 +255,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openSettings() {
-        android.widget.Toast.makeText(this, "Settings coming soon", android.widget.Toast.LENGTH_SHORT).show()
+        startActivity(android.content.Intent(this, SettingsActivity::class.java))
     }
 
     private fun loadUrlOrSearch(input: String) {
