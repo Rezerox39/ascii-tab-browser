@@ -56,6 +56,7 @@ class MainActivity : AppCompatActivity() {
         tabCount.setOnClickListener { showTabSwitcher() }
 
         openNewTab()
+        intent.getStringExtra("open_url")?.let { url -> activeTab?.webView?.loadUrl(url) }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -74,6 +75,11 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = true
             loadWithOverviewMode = true
         }
+        if (prefs.getBoolean("desktopUA", false) || prefs.getBoolean("desktopMode", false)) {
+            wv.settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        val textZoom = when (prefs.getInt("textSize", 1)) { 0 -> 80; 2 -> 120; else -> 100 }
+        wv.settings.textZoom = textZoom
         if (night && WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
             WebSettingsCompat.setForceDark(wv.settings, WebSettingsCompat.FORCE_DARK_ON)
         }
@@ -191,8 +197,8 @@ class MainActivity : AppCompatActivity() {
                 1 -> openNewTab()
                 8 -> openNewTab(true)
                 2 -> bookmarkCurrent()
-                3 -> showBookmarks()
-                4 -> showHistory()
+                3 -> startActivity(android.content.Intent(this, BookmarksActivity::class.java))
+                4 -> startActivity(android.content.Intent(this, HistoryActivity::class.java))
                 5 -> findInPage()
                 6 -> toggleReader()
                 7 -> openSettings()
@@ -258,6 +264,17 @@ class MainActivity : AppCompatActivity() {
         startActivity(android.content.Intent(this, SettingsActivity::class.java))
     }
 
+    private fun searchUrl(q: String): String {
+        val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+        val engine = prefs.getInt("searchEngine", 0)
+        val encoded = java.net.URLEncoder.encode(q, "UTF-8")
+        return when (engine) {
+            1 -> "https://www.bing.com/search?q=$encoded"
+            2 -> "https://duckduckgo.com/?q=$encoded"
+            else -> "https://www.google.com/search?q=$encoded"
+        }
+    }
+
     private fun loadUrlOrSearch(input: String) {
         val wv = activeTab?.webView ?: return
         val q = input.trim()
@@ -267,7 +284,7 @@ class MainActivity : AppCompatActivity() {
         } else if (q.startsWith("http://") || q.startsWith("https://")) {
             q
         } else {
-            "https://www.google.com/search?q=" + java.net.URLEncoder.encode(q, "UTF-8")
+            searchUrl(q)
         }
         wv.loadUrl(url)
     }
