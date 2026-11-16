@@ -1,6 +1,8 @@
 package com.abhi.asciitab
 
 import android.annotation.SuppressLint
+import android.app.AlertDialog
+import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
 import android.view.KeyEvent
@@ -11,28 +13,55 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ProgressBar
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var webView: WebView
+    private lateinit var container: FrameLayout
     private lateinit var urlBar: EditText
     private lateinit var progress: ProgressBar
+    private lateinit var tabCount: TextView
+
+    private val tabs = mutableListOf<Tab>()
+    private var activeTab: Tab? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        container = findViewById(R.id.webContainer)
         urlBar = findViewById(R.id.urlBar)
         progress = findViewById(R.id.progress)
-        webView = findViewById(R.id.webView)
+        tabCount = findViewById(R.id.tabCount)
+        findViewById<ImageButton>(R.id.moreBtn).setOnClickListener { showMenu() }
 
-        webView.settings.apply {
+        urlBar.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_GO) {
+                loadUrlOrSearch(urlBar.text.toString())
+                true
+            } else false
+        }
+
+        findViewById<ImageButton>(R.id.backBtn).setOnClickListener { activeTab?.webView?.let { if (it.canGoBack()) it.goBack() } }
+        findViewById<ImageButton>(R.id.fwdBtn).setOnClickListener { activeTab?.webView?.let { if (it.canGoForward()) it.goForward() } }
+        findViewById<ImageButton>(R.id.reloadBtn).setOnClickListener { activeTab?.webView?.reload() }
+        findViewById<ImageButton>(R.id.homeBtn).setOnClickListener { openNewTab() }
+        tabCount.setOnClickListener { showTabSwitcher() }
+
+        openNewTab()
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun createWebView(): WebView {
+        val wv = WebView(this)
+        wv.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             allowFileAccess = true
@@ -42,32 +71,34 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = true
             loadWithOverviewMode = true
         }
-
-        // Dark mode hint for sites that support prefers-color-scheme
         if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
-            WebSettingsCompat.setForceDark(webView.settings, WebSettingsCompat.FORCE_DARK_ON)
+            WebSettingsCompat.setForceDark(wv.settings, WebSettingsCompat.FORCE_DARK_ON)
         }
 
-        webView.webChromeClient = object : WebChromeClient() {
+        wv.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                progress.progress = newProgress
-                progress.visibility = if (newProgress < 100) android.view.View.VISIBLE else android.view.View.GONE
-            }
-            override fun onReceivedTitle(view: WebView?, title: String?) {
-                if (!title.isNullOrBlank() && view?.url?.startsWith("file:///android_asset") != true) {
-                    urlBar.setText(view?.url ?: "")
+                if (view == activeTab?.webView) {
+                    progress.progress = newProgress
+                    progress.visibility = if (newProgress < 100) android.view.View.VISIBLE else android.view.View.GONE
                 }
             }
+            override fun onReceivedTitle(view: WebView?, title: String?) {
+                tabs.find { it.webView == view }?.title = title ?: "New Tab"
+            }
         }
 
-        webView.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean = false
+        wv.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
-                if (url?.startsWith("file:///android_asset") == true) urlBar.setText("")
-                else urlBar.setText(url ?: "")
+                if (view == activeTab?.webView) {
+                    if (url?.startsWith("file:///android_asset") == true) urlBar.setText("")
+                    else urlBar.setText(url ?: "")
+                }
+                tabs.find { it.webView == view }?.url = url ?: ""
+                if (!url.isNullOrBlank() && !url.startsWith("file:///android_asset")) {
+                    getSharedPreferences("history", Context.MODE_PRIVATE).edit().putString(url, url).apply()
+                }
             }
-            // Lightweight request-level ad/tracker blocking (Via-inspired)
-            override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+            override fun shouldInterceptRequest(view: WebView?, request: android.webkit.WebResourceRequest?): WebResourceResponse? {
                 val host = request?.url?.host ?: return null
                 if (AdBlocker.isBlocked(host)) {
                     return WebResourceResponse("text/plain", "UTF-8", "".byteInputStream())
@@ -76,27 +107,146 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        urlBar.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_GO) {
-                loadUrlOrSearch(urlBar.text.toString())
-                true
-            } else false
+        wv.setDownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->
+            val req = android.app.DownloadManager.Request(android.net.Uri.parse(url))
+            req.setMimeType(mimetype)
+            req.addRequestHeader("User-Agent", userAgent)
+            req.setDescription("Downloading...")
+            req.setTitle(android.net.Uri.parse(url).lastPathSegment ?: "download")
+            req.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            req.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, android.net.Uri.parse(url).lastPathSegment ?: "download")
+            val dm = getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+            dm.enqueue(req)
         }
 
-        findViewById<ImageButton>(R.id.backBtn).setOnClickListener { if (webView.canGoBack()) webView.goBack() }
-        findViewById<ImageButton>(R.id.fwdBtn).setOnClickListener { if (webView.canGoForward()) webView.goForward() }
-        findViewById<ImageButton>(R.id.reloadBtn).setOnClickListener { webView.reload() }
-        findViewById<ImageButton>(R.id.homeBtn).setOnClickListener { openNewTab() }
-
-        openNewTab()
+        return wv
     }
 
     private fun openNewTab() {
-        webView.loadUrl("file:///android_asset/newtab.html")
-        urlBar.setText("")
+        val wv = createWebView()
+        val tab = Tab(webView = wv)
+        tabs.add(tab)
+        switchToTab(tab)
+        wv.loadUrl("file:///android_asset/newtab.html")
+        updateTabCount()
+    }
+
+    private fun switchToTab(tab: Tab) {
+        container.removeAllViews()
+        container.addView(tab.webView, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        activeTab = tab
+        if (tab.url.startsWith("file:///android_asset") || tab.url.isEmpty()) urlBar.setText("")
+        else urlBar.setText(tab.url)
+        updateTabCount()
+    }
+
+    private fun showTabSwitcher() {
+        val items = tabs.map { it.title.take(40) }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Tabs")
+            .setItems(items) { _, which -> switchToTab(tabs[which]) }
+            .setPositiveButton("New tab") { _, _ -> openNewTab() }
+            .setNegativeButton("Close tab") { _, _ ->
+                activeTab?.let { closeTab(it) }
+            }
+            .show()
+    }
+
+    private fun closeTab(tab: Tab) {
+        tabs.remove(tab)
+        tab.webView.destroy()
+        if (tabs.isEmpty()) openNewTab()
+        else switchToTab(tabs.last())
+        updateTabCount()
+    }
+
+    private fun updateTabCount() {
+        tabCount.text = tabs.size.toString()
+    }
+
+    private fun showMenu() {
+        val anchor = findViewById<ImageButton>(R.id.moreBtn)
+        val popup = android.widget.PopupMenu(this, anchor)
+        popup.menu.add(0, 1, 0, "New tab")
+        popup.menu.add(0, 2, 0, "Bookmark this page")
+        popup.menu.add(0, 3, 0, "Bookmarks")
+        popup.menu.add(0, 4, 0, "History")
+        popup.menu.add(0, 5, 0, "Find in page")
+        popup.menu.add(0, 6, 0, "Reader mode")
+        popup.menu.add(0, 7, 0, "Settings")
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                1 -> openNewTab()
+                2 -> bookmarkCurrent()
+                3 -> showBookmarks()
+                4 -> showHistory()
+                5 -> findInPage()
+                6 -> toggleReader()
+                7 -> openSettings()
+            }
+            true
+        }
+        popup.show()
+    }
+
+    private fun bookmarkCurrent() {
+        val url = activeTab?.url ?: return
+        val title = activeTab?.title ?: url
+        val prefs = getSharedPreferences("bookmarks", Context.MODE_PRIVATE)
+        prefs.edit().putString(url, title).apply()
+        android.widget.Toast.makeText(this, "Bookmarked", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showBookmarks() {
+        val prefs = getSharedPreferences("bookmarks", Context.MODE_PRIVATE)
+        val entries = prefs.all.map { "${it.value} — ${it.key}" }
+        AlertDialog.Builder(this)
+            .setTitle("Bookmarks")
+            .setItems(entries.toTypedArray()) { _, which ->
+                val url = entries[which].substringAfter(" — ")
+                activeTab?.webView?.loadUrl(url)
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun showHistory() {
+        val prefs = getSharedPreferences("history", Context.MODE_PRIVATE)
+        val entries = prefs.all.keys.toList()
+        AlertDialog.Builder(this)
+            .setTitle("History")
+            .setItems(entries.toTypedArray()) { _, which ->
+                activeTab?.webView?.loadUrl(entries[which])
+            }
+            .setNegativeButton("Clear", { _, _ -> prefs.edit().clear().apply() })
+            .show()
+    }
+
+    private fun findInPage() {
+        val input = android.widget.EditText(this)
+        AlertDialog.Builder(this)
+            .setTitle("Find in page")
+            .setView(input)
+            .setPositiveButton("Find") { _, _ ->
+                activeTab?.webView?.findAllAsync(input.text.toString())
+            }
+            .setNegativeButton("Clear") { _, _ -> activeTab?.webView?.clearMatches() }
+            .show()
+    }
+
+    private fun toggleReader() {
+        val wv = activeTab?.webView ?: return
+        val css = "body{max-width:700px;margin:0 auto;padding:24px;font-size:18px;line-height:1.6;background:#111;color:#eee;} img{max-width:100%;} nav,aside,footer,header,.ad{display:none!important;}"
+        val js = "javascript:(function(){var s=document.createElement('style');s.innerHTML=\"$css\";document.head.appendChild(s);})()"
+        wv.evaluateJavascript(js, null)
+    }
+
+    private fun openSettings() {
+        android.widget.Toast.makeText(this, "Settings coming soon", android.widget.Toast.LENGTH_SHORT).show()
     }
 
     private fun loadUrlOrSearch(input: String) {
+        val wv = activeTab?.webView ?: return
         val q = input.trim()
         if (q.isEmpty()) return
         val url = if (q.matches(Regex("^[\\w-]+(\\.[\\w-]+)+(:\\d+)?(/\\S*)?$"))) {
@@ -106,14 +256,18 @@ class MainActivity : AppCompatActivity() {
         } else {
             "https://www.google.com/search?q=" + java.net.URLEncoder.encode(q, "UTF-8")
         }
-        webView.loadUrl(url)
+        wv.loadUrl(url)
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_BACK && webView.canGoBack()) {
-            webView.goBack()
-            return true
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            activeTab?.webView?.let { if (it.canGoBack()) { it.goBack(); return true } }
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onDestroy() {
+        tabs.forEach { it.webView.destroy() }
+        super.onDestroy()
     }
 }
