@@ -28,19 +28,29 @@ class MainActivity : AppCompatActivity() {
     private lateinit var progress: ProgressBar
     private lateinit var tabCount: TextView
 
-    private val tabs = mutableListOf<Tab>()
-    private var activeTab: Tab? = null
+    private val tabs get() = TabManager.tabs
+    private var activeTab: Tab?
+        get() = TabManager.active()
+        set(value) { TabManager.activeTabId = value?.id }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        container = findViewById(R.id.webContainerHost)
+        container = findViewById(R.id.webContainer)
         urlBar = findViewById(R.id.urlBar)
         progress = findViewById(R.id.progress)
         tabCount = findViewById(R.id.tabCount)
         findViewById<ImageButton>(R.id.moreBtn).setOnClickListener { showMenu() }
+        UiEffects.applySpring(findViewById(R.id.backBtn))
+        UiEffects.applySpring(findViewById(R.id.fwdBtn))
+        UiEffects.applySpring(findViewById(R.id.shareBtn))
+        UiEffects.applySpring(findViewById(R.id.bookmarksBtn))
+        UiEffects.applySpring(findViewById(R.id.tabsBtn))
+        UiEffects.applySpring(findViewById(R.id.homeBtn))
+        UiEffects.applySpring(findViewById(R.id.moreBtn))
+        UiEffects.applySpring(tabCount)
         urlBar.setOnFocusChangeListener { _, hasFocus ->
             val panel = findViewById<android.widget.LinearLayout>(R.id.bottomPanel)
             panel.visibility = if (hasFocus) android.view.View.GONE else android.view.View.VISIBLE
@@ -56,13 +66,25 @@ class MainActivity : AppCompatActivity() {
         findViewById<ImageButton>(R.id.backBtn).setOnClickListener { activeTab?.webView?.let { if (it.canGoBack()) it.goBack() } }
         findViewById<ImageButton>(R.id.fwdBtn).setOnClickListener { activeTab?.webView?.let { if (it.canGoForward()) it.goForward() } }
         findViewById<ImageButton>(R.id.homeBtn).setOnClickListener { openNewTab() }
-        findViewById<ImageButton>(R.id.tabsBtn).setOnClickListener { showTabSwitcher() }
+        findViewById<ImageButton>(R.id.tabsBtn).setOnClickListener { startActivity(android.content.Intent(this, TabsActivity::class.java)) }
         findViewById<ImageButton>(R.id.bookmarksBtn).setOnClickListener { startActivity(android.content.Intent(this, BookmarksActivity::class.java)) }
         findViewById<ImageButton>(R.id.shareBtn).setOnClickListener { shareCurrent() }
-        tabCount.setOnClickListener { showTabSwitcher() }
+        tabCount.setOnClickListener { startActivity(android.content.Intent(this, TabsActivity::class.java)) }
 
-        openNewTab()
+        if (intent.getBooleanExtra("new_tab", false)) {
+            openNewTab()
+        } else if (TabManager.tabs.isEmpty()) {
+            openNewTab()
+        } else {
+            TabManager.active()?.let { switchToTab(it) }
+        }
         intent.getStringExtra("open_url")?.let { url -> activeTab?.webView?.loadUrl(url) }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        TabManager.active()?.let { if (it != activeTab) switchToTab(it) }
+        updateTabCount()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -150,6 +172,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun switchToTab(tab: Tab) {
+        // capture thumbnail of current tab
+        activeTab?.let { t ->
+            val wv = t.webView
+            if (wv.width > 0 && wv.height > 0) {
+                val bmp = android.graphics.Bitmap.createBitmap(wv.width, wv.height, android.graphics.Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(bmp)
+                wv.draw(canvas)
+                t.thumbnail = bmp
+            }
+        }
         container.removeAllViews()
         container.addView(tab.webView, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
         activeTab = tab

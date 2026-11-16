@@ -37,5 +37,9 @@
             android:name=".HistoryActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden" />
+        <activity
+            android:name=".TabsActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
     </application>
 </manifest>
