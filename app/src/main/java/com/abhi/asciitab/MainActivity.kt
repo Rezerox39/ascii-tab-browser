@@ -41,6 +41,10 @@ class MainActivity : AppCompatActivity() {
         progress = findViewById(R.id.progress)
         tabCount = findViewById(R.id.tabCount)
         findViewById<ImageButton>(R.id.moreBtn).setOnClickListener { showMenu() }
+        urlBar.setOnFocusChangeListener { _, hasFocus ->
+            val panel = findViewById<android.widget.LinearLayout>(R.id.bottomPanel)
+            panel.visibility = if (hasFocus) android.view.View.GONE else android.view.View.VISIBLE
+        }
 
         urlBar.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_GO) {
@@ -153,15 +157,49 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showTabSwitcher() {
-        val items = tabs.map { it.title.take(40) }.toTypedArray()
-        AlertDialog.Builder(this)
-            .setTitle("Tabs")
-            .setItems(items) { _, which -> switchToTab(tabs[which]) }
-            .setPositiveButton("New tab") { _, _ -> openNewTab() }
-            .setNegativeButton("Close tab") { _, _ ->
-                activeTab?.let { closeTab(it) }
+        val dialog = android.app.Dialog(this, R.style.GlassDialog)
+        dialog.setContentView(R.layout.dialog_tab_switcher)
+        val container = dialog.findViewById<android.widget.LinearLayout>(R.id.tabListContainer)
+        for (tab in tabs) {
+            val row = android.widget.LinearLayout(this)
+            row.orientation = android.widget.LinearLayout.HORIZONTAL
+            row.setPadding(12, 12, 12, 12)
+            if (tab == activeTab) row.setBackgroundResource(R.drawable.bg_glass_pill)
+            val title = android.widget.TextView(this)
+            title.text = tab.title.take(40)
+            title.setTextColor(if (tab == activeTab) 0xFF60A5FA.toInt() else 0xFFE2E8F0.toInt())
+            title.fontFamily = "monospace"
+            title.layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            row.addView(title)
+            val close = android.widget.Button(this)
+            close.text = "×"
+            close.setTextColor(0xFFE2E8F0.toInt())
+            close.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            close.setOnClickListener {
+                closeTab(tab)
+                dialog.dismiss()
+                showTabSwitcher()
             }
-            .show()
+            row.addView(close)
+            row.setOnClickListener { switchToTab(tab); dialog.dismiss() }
+            container.addView(row)
+        }
+        dialog.findViewById<android.widget.Button>(R.id.newTabBtn).setOnClickListener {
+            openNewTab(); dialog.dismiss(); showTabSwitcher()
+        }
+        dialog.findViewById<android.widget.Button>(R.id.closeTabBtn).setOnClickListener {
+            activeTab?.let { closeTab(it) }; dialog.dismiss()
+        }
+        dialog.window?.apply {
+            setBackgroundDrawableResource(R.drawable.bg_glass_dialog)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                attributes.blurBehindRadius = 40
+                addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+            }
+            setDimAmount(0.45f)
+            addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        }
+        dialog.show()
     }
 
     private fun closeTab(tab: Tab) {

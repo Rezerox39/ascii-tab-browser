@@ -3,4 +3,5 @@
     <color name="ic_launcher_background">#000000</color>
     <color name="accent">#9fd8ff</color>
     <color name="panel_bg">#CC111111</color>
+    <color name="amole_bg">#000000</color>
 </resources>
