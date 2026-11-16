@@ -36,7 +36,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        container = findViewById(R.id.webContainer)
+        container = findViewById(R.id.webContainerHost)
         urlBar = findViewById(R.id.urlBar)
         progress = findViewById(R.id.progress)
         tabCount = findViewById(R.id.tabCount)
@@ -55,8 +55,10 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<ImageButton>(R.id.backBtn).setOnClickListener { activeTab?.webView?.let { if (it.canGoBack()) it.goBack() } }
         findViewById<ImageButton>(R.id.fwdBtn).setOnClickListener { activeTab?.webView?.let { if (it.canGoForward()) it.goForward() } }
-        findViewById<ImageButton>(R.id.reloadBtn).setOnClickListener { activeTab?.webView?.reload() }
         findViewById<ImageButton>(R.id.homeBtn).setOnClickListener { openNewTab() }
+        findViewById<ImageButton>(R.id.tabsBtn).setOnClickListener { showTabSwitcher() }
+        findViewById<ImageButton>(R.id.bookmarksBtn).setOnClickListener { startActivity(android.content.Intent(this, BookmarksActivity::class.java)) }
+        findViewById<ImageButton>(R.id.shareBtn).setOnClickListener { shareCurrent() }
         tabCount.setOnClickListener { showTabSwitcher() }
 
         openNewTab()
@@ -300,6 +302,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun openSettings() {
         startActivity(android.content.Intent(this, SettingsActivity::class.java))
+    }
+
+    private fun shareCurrent() {
+        val url = activeTab?.url ?: return
+        val i = android.content.Intent(android.content.Intent.ACTION_SEND)
+        i.type = "text/plain"
+        i.putExtra(android.content.Intent.EXTRA_TEXT, url)
+        startActivity(android.content.Intent.createChooser(i, "Share"))
     }
 
     private fun searchUrl(q: String): String {

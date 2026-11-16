@@ -4,8 +4,8 @@
     android:layout_height="match_parent"
     android:background="#000000">
 
-    <FrameLayout
-        android:id="@+id/webContainer"
+    <WebView
+        android:id="@+id/webContainerHost"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
@@ -16,32 +16,34 @@
         android:layout_height="2dp"
         android:max="100" />
 
-    <!-- Top translucent address bar -->
+    <!-- Top floating address bar -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="52dp"
         android:layout_gravity="top"
         android:layout_marginStart="12dp"
         android:layout_marginEnd="12dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="10dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:padding="8dp"
-        android:background="@drawable/bg_glass_dialog">
+        android:padding="6dp"
+        android:background="@drawable/bg_glass_pill">
 
         <EditText
             android:id="@+id/urlBar"
             android:layout_width="0dp"
             android:layout_height="36dp"
             android:layout_weight="1"
-            android:background="#661a1a1a"
-            android:textColor="#ffffff"
+            android:background="@android:color/transparent"
+            android:textColor="#FFFFFF"
             android:hint="Search or type URL"
-            android:textColorHint="#888888"
+            android:textColorHint="#94A3B8"
             android:imeOptions="actionGo"
             android:inputType="textUri"
             android:singleLine="true"
-            android:padding="8dp" />
+            android:paddingStart="12dp"
+            android:paddingEnd="8dp"
+            android:fontFamily="monospace" />
 
         <TextView
             android:id="@+id/tabCount"
@@ -49,13 +51,22 @@
             android:layout_height="32dp"
             android:gravity="center"
             android:text="1"
-            android:textColor="#ffffff"
+            android:textColor="#FFFFFF"
             android:fontFamily="monospace"
-            android:background="#66333333"
-            android:layout_marginStart="6dp" />
+            android:background="@drawable/bg_glass_pill"
+            android:layout_marginEnd="6dp" />
+
+        <ImageButton
+            android:id="@+id/moreBtn"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_more"
+            android:tint="#E2E8F0"
+            android:contentDescription="More" />
     </LinearLayout>
 
-    <!-- Floating translucent bottom navigation panel -->
+    <!-- Bottom floating toolbar (Apple-like) -->
     <LinearLayout
         android:id="@+id/bottomPanel"
         android:layout_width="wrap_content"
@@ -73,6 +84,7 @@
             android:layout_height="44dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_media_previous"
+            android:tint="#E2E8F0"
             android:contentDescription="Back" />
 
         <ImageButton
@@ -81,31 +93,43 @@
             android:layout_height="44dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_media_next"
+            android:tint="#E2E8F0"
             android:contentDescription="Forward" />
 
         <ImageButton
-            android:id="@+id/reloadBtn"
+            android:id="@+id/shareBtn"
             android:layout_width="44dp"
             android:layout_height="44dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_rotate"
-            android:contentDescription="Reload" />
+            android:src="@android:drawable/ic_menu_share"
+            android:tint="#E2E8F0"
+            android:contentDescription="Share" />
+
+        <ImageButton
+            android:id="@+id/bookmarksBtn"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_save"
+            android:tint="#E2E8F0"
+            android:contentDescription="Bookmarks" />
+
+        <ImageButton
+            android:id="@+id/tabsBtn"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_view"
+            android:tint="#E2E8F0"
+            android:contentDescription="Tabs" />
 
         <ImageButton
             android:id="@+id/homeBtn"
             android:layout_width="44dp"
             android:layout_height="44dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_view"
-            android:contentDescription="Home" />
-
-        <ImageButton
-            android:id="@+id/moreBtn"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_more"
+            android:src="@android:drawable/ic_menu_revert"
             android:tint="#E2E8F0"
-            android:contentDescription="More" />
+            android:contentDescription="Home" />
     </LinearLayout>
 </FrameLayout>
