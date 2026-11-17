@@ -26,6 +26,18 @@ fun BrowserApp(vm: BrowserViewModel, tabs: List<Tab>, activeId: Long?) {
     var findQuery by remember { mutableStateOf("") }
     var bottomBarVisible by remember { mutableStateOf(true) }
     val activeTab = tabs.find { it.id == activeId }
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner, activeTab) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> activeTab?.webView?.onPause()
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> activeTab?.webView?.onResume()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(Unit) {
         if (vm.tabs.value.isEmpty()) vm.createTab()

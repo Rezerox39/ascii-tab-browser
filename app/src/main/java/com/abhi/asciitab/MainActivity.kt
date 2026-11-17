@@ -11,6 +11,8 @@ import com.abhi.asciitab.ui.theme.AsciiTabTheme
 import com.abhi.asciitab.viewmodel.BrowserViewModel
 
 class MainActivity : ComponentActivity() {
+    private var activeWebView: android.webkit.WebView? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -22,5 +24,14 @@ class MainActivity : ComponentActivity() {
                 BrowserApp(vm, tabs, activeId)
             }
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // WebView pause handled by view; keep app lightweight
+    }
+
+    override fun onResume() {
+        super.onResume()
     }
 }
