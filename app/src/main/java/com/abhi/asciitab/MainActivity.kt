@@ -237,12 +237,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun closeTab(tab: Tab) {
-        tabs.remove(tab)
         if (tab.incognito) {
             android.webkit.CookieManager.getInstance().removeAllCookies(null)
             tab.webView.clearCache(true)
             tab.webView.clearHistory()
         }
+        container.removeView(tab.webView)
+        tabs.remove(tab)
+        tab.webView.stopLoading()
         tab.webView.destroy()
         if (tabs.isEmpty()) openNewTab()
         else switchToTab(tabs.last())

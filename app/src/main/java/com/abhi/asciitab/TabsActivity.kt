@@ -18,10 +18,14 @@ class TabsActivity : AppCompatActivity() {
             startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             finish()
         }, { tab ->
+            if (TabManager.activeTabId == tab.id) {
+                TabManager.activeTabId = TabManager.tabs.lastOrNull { it.id != tab.id }?.id
+            }
             TabManager.tabs.remove(tab)
+            tab.webView.stopLoading()
             tab.webView.destroy()
             if (TabManager.tabs.isEmpty()) {
-                // ensure at least one tab
+                // MainActivity will recreate a tab when resumed
             }
             (rv.adapter as? TabAdapter)?.notifyDataSetChanged()
         })
