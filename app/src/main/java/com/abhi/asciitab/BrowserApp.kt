@@ -22,6 +22,9 @@ fun BrowserApp(vm: BrowserViewModel, tabs: List<Tab>, activeId: Long?) {
     var screen by remember { mutableStateOf(Screen.Browser) }
     var urlInput by remember { mutableStateOf("") }
     var showMenu by remember { mutableStateOf(false) }
+    var showFind by remember { mutableStateOf(false) }
+    var findQuery by remember { mutableStateOf("") }
+    var bottomBarVisible by remember { mutableStateOf(true) }
     val activeTab = tabs.find { it.id == activeId }
 
     LaunchedEffect(Unit) {
@@ -58,8 +61,10 @@ fun BrowserApp(vm: BrowserViewModel, tabs: List<Tab>, activeId: Long?) {
                         )
                     },
                     actions = {
-                        IconButton(onClick = { screen = Screen.Tabs }) {
-                            Icon(Icons.Default.GridView, contentDescription = "Tabs")
+                        BadgedBox(badge = { Badge { Text(tabs.size.toString()) } }) {
+                            IconButton(onClick = { screen = Screen.Tabs }) {
+                                Icon(Icons.Default.GridView, contentDescription = "Tabs")
+                            }
                         }
                         IconButton(onClick = { showMenu = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = "Menu")
@@ -70,12 +75,20 @@ fun BrowserApp(vm: BrowserViewModel, tabs: List<Tab>, activeId: Long?) {
         },
         bottomBar = {
             if (screen == Screen.Browser) {
-                BottomAppBar {
-                    IconButton(onClick = { activeTab?.webView?.goBack() }) { Icon(Icons.Default.ArrowBack, null) }
-                    IconButton(onClick = { activeTab?.webView?.goForward() }) { Icon(Icons.Default.ArrowForward, null) }
-                    IconButton(onClick = { activeTab?.webView?.reload() }) { Icon(Icons.Default.Refresh, null) }
-                    Spacer(Modifier.weight(1f))
-                    IconButton(onClick = { activeTab?.webView?.loadUrl("file:///android_asset/newtab.html") }) { Icon(Icons.Default.Home, null) }
+                androidx.compose.animation.AnimatedVisibility(visible = bottomBarVisible) {
+                    BottomAppBar {
+                        IconButton(onClick = { activeTab?.webView?.goBack() }) { Icon(Icons.Default.ArrowBack, null) }
+                        IconButton(onClick = { activeTab?.webView?.goForward() }) { Icon(Icons.Default.ArrowForward, null) }
+                        IconButton(onClick = { activeTab?.webView?.reload() }) { Icon(Icons.Default.Refresh, null) }
+                        IconButton(onClick = {
+                            val i = android.content.Intent(android.content.Intent.ACTION_SEND)
+                            i.type = "text/plain"
+                            i.putExtra(android.content.Intent.EXTRA_TEXT, activeTab?.url ?: "")
+                            context.startActivity(android.content.Intent.createChooser(i, "Share"))
+                        }) { Icon(Icons.Default.Share, null) }
+                        Spacer(Modifier.weight(1f))
+                        IconButton(onClick = { activeTab?.webView?.loadUrl("file:///android_asset/newtab.html") }) { Icon(Icons.Default.Home, null) }
+                    }
                 }
             }
         }
@@ -93,12 +106,26 @@ fun BrowserApp(vm: BrowserViewModel, tabs: List<Tab>, activeId: Long?) {
                                         settings.javaScriptEnabled = true
                                         settings.domStorageEnabled = true
                                         settings.allowFileAccess = true
+                                        webViewClient = object : android.webkit.WebViewClient() {
+                                            override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                                                if (url != null) vm.updateUrl(activeTab.id, url)
+                                                view?.title?.let { vm.updateTitle(activeTab.id, it) }
+                                            }
+                                            override fun onReceivedError(view: android.webkit.WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
+                                                if (request?.isForMainFrame == true) {
+                                                    view?.loadData(ERROR_HTML, "text/html", "UTF-8")
+                                                }
+                                            }
+                                        }
+                                        setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
+                                            bottomBarVisible = scrollY <= oldScrollY || scrollY < 100
+                                        }
                                         val url = activeTab.url.ifBlank { "file:///android_asset/newtab.html" }
                                         loadUrl(url)
                                         vm.attachWebView(activeTab.id, this)
                                     }
                                 },
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier.fillMaxSize().padding(bottom = 72.dp)
                             )
                         }
                     }
@@ -116,11 +143,39 @@ fun BrowserApp(vm: BrowserViewModel, tabs: List<Tab>, activeId: Long?) {
                 Spacer(Modifier.height(8.dp))
                 MenuItem("New tab") { vm.createTab(); showMenu = false }
                 MenuItem("New private tab") { vm.createTab(true); showMenu = false }
+                MenuItem("Find in page") { showFind = true; showMenu = false }
+                MenuItem("Share") {
+                    val i = android.content.Intent(android.content.Intent.ACTION_SEND)
+                    i.type = "text/plain"
+                    i.putExtra(android.content.Intent.EXTRA_TEXT, activeTab?.url ?: "")
+                    context.startActivity(android.content.Intent.createChooser(i, "Share"))
+                    showMenu = false
+                }
                 MenuItem("Bookmarks") { showMenu = false }
                 MenuItem("History") { showMenu = false }
                 MenuItem("Settings") { screen = Screen.Settings; showMenu = false }
             }
         }
+    }
+
+    if (showFind) {
+        AlertDialog(
+            onDismissRequest = { showFind = false; activeTab?.webView?.clearMatches() },
+            title = { Text("Find in page") },
+            text = {
+                OutlinedTextField(
+                    value = findQuery,
+                    onValueChange = { findQuery = it; activeTab?.webView?.findAllAsync(it) },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showFind = false }) { Text("Done") }
+            },
+            dismissButton = {
+                TextButton(onClick = { activeTab?.webView?.clearMatches(); findQuery = "" }) { Text("Clear") }
+            }
+        )
     }
 }
 
@@ -166,3 +221,5 @@ fun SettingsScreen(onBack: () -> Unit) {
         Button(onClick = onBack) { Text("Back") }
     }
 }
+
+private const val ERROR_HTML = "<html><body style='background:#000;color:#fff;font-family:monospace;padding:24px'><h1>Offline</h1><p>Couldn't load this page.</p></body></html>"
